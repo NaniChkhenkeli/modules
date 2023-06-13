@@ -1,0 +1,148 @@
+type 'a lambda =
+  | Var of 'a
+  | Fun of 'a * 'a lambda
+  | App of 'a lambda * 'a lambda
+
+let rec substitute x r = function
+  | Var y -> if x = y then r else Var y
+  | Fun (y, t) ->
+      if x = y then Fun (y, t)
+      else if not (x = y || List.mem y (free_vars r)) then Fun (y, substitute x r t)
+      else
+        let z = fresh_var () in
+        Fun (z, substitute x r (substitute y (Var z) t))
+
+let rec beta_reduce term =
+  match term with
+  | App (Fun (x, t), r) ->
+      let t' = substitute x r t in
+      if t' = t then term  (* No reduction occurred *)
+      else t'  (* Reduced term *)
+  | App (t1, t2) ->
+      let t1' = beta_reduce t1 in
+      if t1' = t1 then
+        let t2' = beta_reduce t2 in
+        if t2' = t2 then term  (* No reduction occurred *)
+        else App (t1, t2')  (* Reduced term *)
+      else App (t1', t2)  (* Reduced term *)
+  | Fun (x, t) ->
+      let t' = beta_reduce t in
+      if t' = t then term  (* No reduction occurred *)
+      else Fun (x, t')  (* Reduced term *)
+  | Var _ -> term  (* No reduction for variables *)
+
+let rec eval_lambda term =
+  let term' = beta_reduce term in
+  if term' = term then term  (* No more reductions, return the final term *)
+  else eval_lambda term'
+
+(* Helper function to convert a string to a Var *)
+let var x = Var x
+
+(* Helper functions to handle free variables *)
+let rec free_vars = function
+  | Var x -> [x]
+  | Fun (x, t) -> List.filter (fun y -> y <> x) (free_vars t)
+  | App (t1, t2) -> free_vars t1 @ free_vars t2
+
+let fresh_var () = failwith "fresh_var not implemented"
+
+(* Test *)
+let term = App (Fun ("x", App (Var "x", Var "x")), Fun ("y", Var "y"))
+let reduced_term = eval_lambda term
+
+
+
+(* ---------------------------------------------------------- OTHER WAY --------------------------------------------------------------- *)
+type 'a lambda = Var of 'a | Fun of 'a * 'a lambda | App of 'a lambda * 'a lambda
+
+let rec substitute (t: 'a lambda) (x: 'a) (r: 'a lambda): 'a lambda =
+  match t with
+  | Var y -> if y = x then r else t
+  | Fun (y, t') ->
+      if y = x then t
+      else if not (free_in y r) then Fun (y, substitute t' x r)
+      else let z = fresh_var () in Fun (z, substitute (substitute t' y (Var z)) x r)
+  | App (t1, t2) -> App (substitute t1 x r, substitute t2 x r)
+
+and free_in (x: 'a) (t: 'a lambda): bool =
+  match t with
+  | Var y -> y = x
+  | Fun (y, t') -> y <> x && free_in x t'
+  | App (t1, t2) -> free_in x t1 || free_in x t2
+
+and fresh_var (): 'a =
+  (* Generate fresh variable name *)
+  (* You can implement this part based on your needs and preferences *)
+  failwith "Fresh variable generation not implemented"
+
+let beta_reduction (t: 'a lambda): 'a lambda option =
+  match t with
+  | App (Fun (x, t'), r) ->
+      let r' = beta_reduction r in
+      Some (match r' with
+            | Some r'' -> App (Fun (x, t'), r'')
+            | None -> substitute t' x r)
+  | _ -> None
+
+
+
+(* ---------------------------------------------------------------------- OTHER WAY ------------------------------------------------------------- *)
+type 'a lambda =
+  | Var of 'a
+  | Fun of 'a * 'a lambda
+  | App of 'a lambda * 'a lambda
+
+let rec substitute term var replacement =
+  match term with
+  | Var x -> if x = var then replacement else term
+  | App (t1, t2) ->
+    let new_t1 = substitute t1 var replacement in
+    let new_t2 = substitute t2 var replacement in
+    App (new_t1, new_t2)
+  | Fun (x, t) ->
+    if x = var then term
+    else
+      let new_t = substitute t var replacement in
+      Fun (x, new_t)
+
+let rec beta_reduction term =
+  match term with
+  | App (Fun (x, t), r) -> substitute t x r
+  | App (t1, t2) ->
+    let new_t1 = beta_reduction t1 in
+    let new_t2 = beta_reduction t2 in
+    App (new_t1, new_t2)
+  | Fun (x, t) ->
+    let new_t = beta_reduction t in
+    Fun (x, new_t)
+  | Var _ -> term
+
+(*---------------------------------------------------- OTHER WAY --------------------------------------------------------------------- *)
+type 'a lambda = Var of 'a | Fun of 'a * 'a lambda | App of 'a lambda * 'a lambda
+
+let rec substitute term var replacement =
+  match term with
+  | Var v -> if v = var then replacement else term
+  | Fun (x, t) -> if x = var then term else Fun (x, substitute t var replacement)
+  | App (t1, t2) -> App (substitute t1 var replacement, substitute t2 var replacement)
+
+let rec beta_reduction term =
+  match term with
+  | App (Fun (x, t), r) -> substitute t x r
+  | App (t1, t2) ->
+      let t1_reduced = beta_reduction t1 in
+      let t2_reduced = beta_reduction t2 in
+      App (t1_reduced, t2_reduced)
+  | Fun (x, t) -> Fun (x, beta_reduction t)
+  | Var _ -> term
+
+(* Example usage *)
+let example_term =
+  App (Fun ("x", App (Var "x", Var "x")), Var "y")
+
+let reduced_term = beta_reduction example_term
+
+let () = match reduced_term with
+  | App (App (Var "y", Var "y"), Var "y") -> print_endline "Reduction successful"
+  | _ -> print_endline "Reduction failed"

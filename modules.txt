@@ -1,0 +1,211 @@
+(* stack implemented as a list *)
+
+module ListStack : Stack = struct
+  type 'a stack = 'a list
+
+  let empty = []
+  let is_empty s = s = []
+  let push x s = x :: s
+  let peek = function 
+    | []   -> failwith "Empty"
+    | x::_ -> x
+  let pop = function 
+    | []    -> failwith "Empty"
+    | _::xs -> xs
+end
+
+(* implemented as variants *)
+module MyStack : Stack = struct
+  type 'a stack = 
+  | Empty 
+  | Entry of 'a * 'a stack
+
+  let empty = Empty
+  let is_empty s = s = Empty
+  let push x s = Entry (x, s)
+  let peek = function
+    | Empty -> failwith "Empty"
+    | Entry(x,_) -> x
+  let pop = function
+    | Empty -> failwith "Empty"
+    | Entry(_,s) -> s
+end
+
+
+(* Use the following function to create TwoListQueue's of exponentially increasing length:
+
+let fill_twolistqueue n =
+  let rec loop n q =
+    if n=0 then q
+    else loop (n-1) (TwoListQueue.enqueue n q) in
+  loop n TwoListQueue.empty *)
+
+module type Queue = sig
+  type 'a queue
+  val empty : 'a queue
+  val enqueue : 'a -> 'a queue -> 'a queue
+  val dequeue : 'a queue -> 'a * 'a queue
+  val is_empty : 'a queue -> bool
+end
+
+module TwoListQueue : Queue = struct
+  type 'a queue = 'a list * 'a list
+
+  let empty = ([], [])
+
+  let enqueue x (front, rear) =
+    (x :: front, rear)
+
+  let dequeue = function
+    | [], [] -> failwith "Queue is empty"
+    | front, x :: rear -> (x, (front, rear))
+    | front, [] -> let reversed = List.rev front in (List.hd reversed, ([], List.tl reversed))
+
+  let is_empty (front, rear) =
+    match front, rear with
+    | [], [] -> true
+    | _, _ -> false
+end
+
+let fill_twolistqueue n =
+  let module Queue = (val TwoListQueue : Queue) in
+  let rec loop n q =
+    if n = 0 then q
+    else loop (n - 1) (Queue.enqueue n q)
+  in
+  loop n Queue.empty
+
+
+
+  (* Write a module BstDict that implements the Dictionary module type using the tree type. *)
+  module type Dictionary = sig
+    type ('k, 'v) t
+    val empty : ('k, 'v) t
+    val insert : 'k -> 'v -> ('k, 'v) t -> ('k, 'v) t
+    val lookup : 'k -> ('k, 'v) t -> 'v option
+  end
+  
+  module BstDict : Dictionary = struct
+    type ('k, 'v) t = Empty | Node of ('k * 'v) * ('k, 'v) t * ('k, 'v) t
+  
+    let empty = Empty
+  
+    let rec insert key value = function
+      | Empty -> Node ((key, value), Empty, Empty)
+      | Node ((k, v), left, right) ->
+        if key = k then Node ((key, value), left, right)
+        else if key < k then Node ((k, v), insert key value left, right)
+        else Node ((k, v), left, insert key value right)
+  
+    let rec lookup key = function
+      | Empty -> None
+      | Node ((k, v), left, right) ->
+        if key = k then Some v
+        else if key < k then lookup key left
+        else lookup key right
+  end
+
+  (* Write a module that implements the Fraction module type below:
+
+module type Fraction = sig
+  (* A fraction is a rational number p/q, where q != 0.*)
+  type t
+
+  (* [make n d] is n/d. Requires d != 0. *)
+  val make : int -> int -> t
+
+  val numerator : t -> int
+  val denominator : t -> int
+  val to_string : t -> string
+  val to_float : t -> float
+
+  val add : t -> t -> t
+  val mul : t -> t -> t
+end *)
+
+module type Fraction = sig
+  (* A fraction is a rational number p/q, where q != 0. *)
+  type t
+
+  (* [make n d] is n/d. Requires d != 0. *)
+  val make : int -> int -> t
+
+  val numerator : t -> int
+  val denominator : t -> int
+  val to_string : t -> string
+  val to_float : t -> float
+
+  val add : t -> t -> t
+  val mul : t -> t -> t
+end
+
+module Fraction : Fraction = struct
+  type t = { numerator: int; denominator: int }
+
+  let make numerator denominator =
+    if denominator = 0 then
+      invalid_arg "make: denominator cannot be zero"
+    else
+      { numerator; denominator }
+
+  let numerator { numerator; _ } = numerator
+
+  let denominator { denominator; _ } = denominator
+
+  let to_string { numerator; denominator } =
+    if denominator = 1 then
+      string_of_int numerator
+    else
+      string_of_int numerator ^ "/" ^ string_of_int denominator
+
+  let to_float { numerator; denominator } =
+    float_of_int numerator /. float_of_int denominator
+
+  let normalize { numerator; denominator } =
+    let gcd = Z.gcd (Z.of_int numerator) (Z.of_int denominator) in
+    let numerator' = numerator / (Z.to_int gcd) in
+    let denominator' = denominator / (Z.to_int gcd) in
+    { numerator = numerator'; denominator = denominator' }
+
+  let add f1 f2 =
+    let numerator = (numerator f1 * denominator f2) + (numerator f2 * denominator f1) in
+    let denominator = denominator f1 * denominator f2 in
+    normalize { numerator; denominator }
+
+  let mul f1 f2 =
+    let numerator = numerator f1 * numerator f2 in
+    let denominator = denominator f1 * denominator f2 in
+    normalize { numerator; denominator }
+end
+
+(* Use the Map.Make functor with your Date module to create a DateMap module. Then define a calendar type as follows:
+
+type calendar = string DateMap.t
+The idea is that calendar maps a date to the name of an event occurring on that date.
+
+Using the functions in the DateMap module, create a calendar with a few entries in it, such as birthdays or anniversaries. *)
+
+module Date = struct
+  type t = { month : int; day : int }
+  let compare d1 d2 =
+    let month_diff = d1.month - d2.month in
+    if month_diff <> 0 then month_diff
+    else d1.day - d2.day
+end
+
+module DateMap = Map.Make(Date)
+
+type calendar = string DateMap.t
+
+
+(* Write a functor Print that takes as input a module named M of type ToString. 
+The structure returned by your functor should have exactly
+    one value in it, print, which is a function that 
+    takes a value of type M.t and prints a string representation of that value. *)
+
+    module Print (M : ToString) = struct
+      let print (value : M.t) : unit =
+        let str = M.to_string value in
+        print_endline str
+    end
+    
